@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Take 5 Photos</title>
+  <style>
+    video, canvas { display: block; margin-top: 10px; max-width: 100%; }
+    #previews img { max-width: 150px; margin: 5px; border: 1px solid #ddd; }
+  </style>
+</head>
+<body>
+  <h2>Take 5 Photos with Webcam</h2>
+  <video id="video" autoplay></video><br>
+  <button id="captureBtn">Capture 5 Photos</button>
+  <div id="log"></div>
+  <div id="previews"></div>
+
+  <script>
+    const { ipcRenderer } = require("electron");
+    const video = document.getElementById("video");
+    const logEl = document.getElementById("log");
+    const previews = document.getElementById("previews");
+
+    function log(msg) {
+      console.log(msg);
+      logEl.textContent += msg + "\n";
+    }
+
+    // ask for webcam access
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => { video.srcObject = stream; })
+      .catch(err => { log("Camera error: " + err.message); });
+
+    async function capturePhotos() {
+      log("Starting capture...");
+      for (let i = 0; i < 5; i++) {
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // get base64 image
+        const dataUrl = canvas.toDataURL("image/png");
+        const base64 = dataUrl.replace(/^data:image\/png;base64,/, "");
+
+        // save to file
+        const result = await ipcRenderer.invoke("save-photo", base64, i);
+        if (result.success) {
+          log(`✅ Saved: ${result.path}`);
+          const img = document.createElement("img");
+          img.src = dataUrl;
+          previews.appendChild(img);
+        } else {
+          log(`❌ Error: ${result.error}`);
+        }
+
+        await new Promise(r => setTimeout(r, 1000)); // wait 1 sec between shots
+      }
+      log("Done!");
+    }
+
+    document.getElementById("captureBtn").onclick = capturePhotos;
+  </script>
+</body>
+</html>
+
